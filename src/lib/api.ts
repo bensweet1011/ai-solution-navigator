@@ -1,176 +1,305 @@
 import { AssessmentResults, FormData } from '@/types/assessment';
 
-// Placeholder function for API calls - to be implemented later
+const ANTHROPIC_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY;
+const PERPLEXITY_API_KEY = import.meta.env.VITE_PERPLEXITY_API_KEY;
+
+// Main function that orchestrates both API calls
 export async function generateAssessment(formData: FormData): Promise<AssessmentResults> {
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 2000));
+  // Send email notification (don't await - fire and forget)
+  sendEmailNotification(formData);
   
-  // Return mock results for now
-  return getMockResults(formData);
+  // Step 1: Get market research from Perplexity
+  const marketResearch = await getMarketResearch(formData);
+  
+  // Step 2: Generate full assessment with Claude
+  const assessment = await generateClaudeAssessment(formData, marketResearch);
+  
+  return assessment;
 }
 
-function getMockResults(formData: FormData): AssessmentResults {
-  return {
-    viabilityScores: [
-      { dimension: 'Demand Signal', score: 4, rationale: 'Strong market pull indicated by existing pain points in target industry' },
-      { dimension: 'Differentiation', score: 3, rationale: 'Moderate differentiation; AI-native approach provides edge over legacy solutions' },
-      { dimension: 'Distribution Ease', score: 4, rationale: 'Clear buyer persona with established procurement channels' },
-      { dimension: 'Build Complexity', score: 2, rationale: 'Significant ML pipeline and integration requirements expected' },
-      { dimension: 'Regulatory Risk', score: 3, rationale: 'Moderate compliance requirements; standard data protection applies' },
-      { dimension: 'Defensibility', score: 3, rationale: 'Data network effects possible; execution speed is primary moat' },
-      { dimension: 'Time-to-Value', score: 4, rationale: 'MVP can demonstrate value within 8-12 weeks' },
-    ],
-    mostConstraining: ['Build Complexity', 'Differentiation'],
-    responsibleAIRisks: [
-      { dimension: 'Privacy & Data Protection', level: 'Medium', rationale: 'User data handling requires standard safeguards' },
-      { dimension: 'Bias & Fairness', level: 'Low', rationale: 'Limited impact on protected groups' },
-      { dimension: 'Transparency', level: 'Low', rationale: 'Decisions are advisory, not deterministic' },
-      { dimension: 'Safety & Harm', level: 'Low', rationale: 'No physical safety implications identified' },
-      { dimension: 'Security & Misuse', level: 'Medium', rationale: 'Standard security practices recommended' },
-      { dimension: 'Human Oversight', level: 'Low', rationale: 'Human-in-the-loop design appropriate' },
-    ],
-    euAiActClassification: 'Limited Risk (requires transparency obligations)',
-    reportMarkdown: generateMockReport(formData),
-  };
+// Email notification via Web3Forms
+async function sendEmailNotification(formData: FormData): Promise<void> {
+  try {
+    await fetch('https://api.web3forms.com/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        access_key: 'd2df5af8-1ba4-4063-a2a0-ce61f621684e',
+        subject: 'New AI Solution Navigator Submission',
+        from_name: 'AI Solution Navigator',
+        solution_concept: formData.solutionConcept,
+        primary_user: formData.primaryUser,
+        industry: formData.industryDomain,
+        problem: formData.problemPainPoint || 'Not provided',
+        constraints: formData.constraints || 'Not provided',
+        differentiation: formData.differentiationHypothesis || 'Not provided',
+        competitors: formData.knownCompetitors || 'Not provided',
+      }),
+    });
+  } catch (error) {
+    console.error('Email notification failed:', error);
+  }
 }
 
-function generateMockReport(formData: FormData): string {
-  return `# AI Solution Assessment Report
+// Perplexity API call for market research
+async function getMarketResearch(formData: FormData): Promise<string> {
+  const query = `Research the competitive landscape for this AI solution concept:
+
+Industry: ${formData.industryDomain}
+Target User: ${formData.primaryUser}
+Solution Concept: ${formData.solutionConcept}
+${formData.knownCompetitors ? `Known Competitors: ${formData.knownCompetitors}` : ''}
+
+Please provide:
+1. 3-5 relevant competitors or existing solutions in this space with brief descriptions
+2. Key market dynamics (is the market growing, consolidating, etc.)
+3. Recent trends or developments in this space
+4. Potential differentiation opportunities
+
+Include source URLs for competitor information.`;
+
+  try {
+    const response = await fetch('https://api.perplexity.ai/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'sonar',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a market research analyst. Provide factual, well-sourced information about competitors and market dynamics. Always include source URLs when referencing specific companies or data.'
+          },
+          {
+            role: 'user',
+            content: query
+          }
+        ],
+        max_tokens: 2000,
+        temperature: 0.2,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error('Perplexity API error:', errorData);
+      throw new Error(`Perplexity API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log('Perplexity response:', data.choices[0].message.content);
+    return data.choices[0].message.content;
+  } catch (error) {
+    console.error('Market research failed:', error);
+    return 'Market research unavailable. Proceeding with analysis based on provided information.';
+  }
+}
+
+// Claude API call for full assessment
+async function generateClaudeAssessment(formData: FormData, marketResearch: string): Promise<AssessmentResults> {
+  const systemPrompt = `You are an expert AI product strategist and solution architect. You help organizations evaluate AI solution concepts with rigorous, structured analysis.
+
+Your assessments are known for:
+- Explicit assumptions and uncertainties (you state what you don't know)
+- Grounded analysis (not generic advice)
+- Practical viability scoring
+- Responsible AI awareness (NIST AI RMF, EU AI Act)
+- Clear kill criteria and validation steps
+
+You output structured JSON that matches the required schema exactly.`;
+
+  const userPrompt = `Analyze this AI solution concept and provide a comprehensive first-pass assessment.
+
+## Solution Input
+
+**Solution Concept:** ${formData.solutionConcept}
+
+**Primary User/Buyer:** ${formData.primaryUser}
+
+**Industry/Domain:** ${formData.industryDomain}
+
+**Problem & Pain Point:** ${formData.problemPainPoint || 'Not specified'}
+
+**Success Metric:** ${formData.successMetric || 'Not specified'}
+
+**Constraints:** ${formData.constraints || 'Not specified'}
+
+**Data Availability:** ${formData.dataAvailability || 'Not specified'}
+
+**Sensitive Data Types:** ${formData.sensitiveDataTypes || 'None specified'}
+
+**High-Stakes Decisions:** ${formData.highStakesDecisions ? 'Yes' : 'No'}
+
+**Differentiation Hypothesis:** ${formData.differentiationHypothesis || 'Not specified'}
+
+**Known Competitors:** ${formData.knownCompetitors || 'Not specified'}
+
+**Deployment Context:** ${formData.deploymentContext}
+
+**Geography:** ${formData.geography}
+
+## Market Research (from Perplexity)
+
+${marketResearch}
+
+---
+
+## Required Output
+
+Return a JSON object with this exact structure:
+
+{
+  "viabilityScores": [
+    {"dimension": "Demand Signal", "score": 1-5, "rationale": "one sentence"},
+    {"dimension": "Differentiation", "score": 1-5, "rationale": "one sentence"},
+    {"dimension": "Distribution Ease", "score": 1-5, "rationale": "one sentence"},
+    {"dimension": "Build Complexity", "score": 1-5, "rationale": "one sentence"},
+    {"dimension": "Regulatory Risk", "score": 1-5, "rationale": "one sentence"},
+    {"dimension": "Defensibility", "score": 1-5, "rationale": "one sentence"},
+    {"dimension": "Time-to-Value", "score": 1-5, "rationale": "one sentence"}
+  ],
+  "mostConstraining": ["dimension1", "dimension2"],
+  "responsibleAIRisks": [
+    {"dimension": "Privacy & Data Protection", "level": "Low|Medium|High", "rationale": "one sentence"},
+    {"dimension": "Bias & Fairness", "level": "Low|Medium|High", "rationale": "one sentence"},
+    {"dimension": "Transparency", "level": "Low|Medium|High", "rationale": "one sentence"},
+    {"dimension": "Safety & Harm", "level": "Low|Medium|High", "rationale": "one sentence"},
+    {"dimension": "Security & Misuse", "level": "Low|Medium|High", "rationale": "one sentence"},
+    {"dimension": "Human Oversight", "level": "Low|Medium|High", "rationale": "one sentence"}
+  ],
+  "euAiActClassification": "Minimal Risk | Limited Risk | High Risk | Unacceptable Risk - with brief explanation",
+  "reportMarkdown": "full markdown report (see structure below)"
+}
+
+## Report Markdown Structure
+
+The reportMarkdown field should contain a complete markdown report with these sections:
+
+# AI Solution Assessment Report
 
 ## Executive Summary
+- One paragraph summarizing concept and target user
+- Conditional recommendation: "Promising if...", "Risky if...", or "Do not proceed until..."
+- Single biggest uncertainty
+- Decision focus: what to validate first
 
-This assessment evaluates the viability and responsible AI considerations for **${formData.solutionConcept.slice(0, 100)}...** targeting **${formData.primaryUser}** in the **${formData.industryDomain}** sector.
+## Problem Framing and Assumptions
+- Restated problem in plain language
+- Why existing solutions fail
+- Explicit assumptions (demand, buyer, data, integration, regulatory)
+- Top unknowns
 
-**Overall Verdict:** The solution shows promising market viability with manageable technical and regulatory risks. Key focus areas include addressing build complexity and strengthening differentiation strategy.
+## Proposed Solution Concept
+- User journey in 3 steps
+- System boundaries (what it does and doesn't do)
+- LLM contribution explanation
 
----
+## AI Feasibility Snapshot
+- LLM fit statement
+- Data and context requirements
+- Integration complexity
+- Top technical risks
 
-## Problem Framing
-
-### The Challenge
-${formData.problemPainPoint || 'The core problem centers on inefficiencies and friction in current workflows that the target users face daily.'}
-
-### Why Now?
-Recent advances in large language models and AI infrastructure have made solutions in this space newly feasible. Market timing appears favorable given increased digital transformation investment.
-
-### Target Users
-**Primary:** ${formData.primaryUser}
-
-The primary users are likely experiencing significant friction with existing solutions, creating receptivity to AI-powered alternatives.
-
----
-
-## Solution Concept
-
-### Core Proposition
-${formData.solutionConcept}
-
-### Key Differentiators
-${formData.differentiationHypothesis || 'The solution leverages modern AI capabilities to deliver automation and insights not possible with traditional approaches.'}
-
-### Success Metrics
-${formData.successMetric || 'Primary metrics should focus on time savings, accuracy improvements, and user adoption rates.'}
-
----
-
-## AI Feasibility Assessment
-
-### Technical Approach
-Based on the solution requirements, a hybrid approach combining:
-- **Foundation Models:** Leveraging pre-trained LLMs for natural language understanding
-- **Custom Fine-tuning:** Domain-specific optimization for accuracy
-- **RAG Architecture:** Retrieval-augmented generation for knowledge grounding
-
-### Data Requirements
-${formData.dataAvailability || 'Data availability and quality will be critical success factors. Initial assessment suggests adequate training data may be accessible.'}
-
-### Build Complexity Analysis
-| Component | Complexity | Notes |
-|-----------|------------|-------|
-| Data Pipeline | Medium | Standard ETL with quality controls |
-| ML Models | Medium-High | Custom fine-tuning required |
-| Integration Layer | Medium | API-first architecture recommended |
-| User Interface | Low-Medium | Standard web application |
-
----
-
-## Market Snapshot
-
-### Industry Context
-The **${formData.industryDomain}** sector is experiencing significant AI adoption pressure, with enterprises actively seeking automation solutions.
-
-### Competitive Landscape
-${formData.knownCompetitors ? `Known competitors include: ${formData.knownCompetitors}` : 'The competitive landscape includes both established players and emerging AI-native startups.'}
-
-### Market Timing
-Current conditions favor new entrants with genuine AI capabilities, as buyers increasingly distinguish between "AI-washed" products and genuine innovation.
-
----
+## Market and Competitive Snapshot
+- 3-5 competitors with descriptions and source citations
+- Category dynamics
+- Differentiation direction
+- "Information Needed to Increase Confidence" subsection
 
 ## Viability Analysis
+- Score table with visual indicators
+- Interpretation paragraph naming most constraining dimensions
 
-### Scoring Summary
+## Risks, Kill Criteria, and Responsible AI
+### Execution and Product Risks
+- Top 5 risks with severity and mitigation direction
 
-| Dimension | Score | Assessment |
-|-----------|-------|------------|
-| Demand Signal | ●●●●○ | Strong market pull |
-| Differentiation | ●●●○○ | Moderate, needs strengthening |
-| Distribution Ease | ●●●●○ | Clear go-to-market path |
-| Build Complexity | ●●○○○ | Significant effort required |
-| Regulatory Risk | ●●●○○ | Manageable with proper controls |
-| Defensibility | ●●●○○ | Execution-dependent |
-| Time-to-Value | ●●●●○ | Quick wins possible |
+### Responsible AI and Regulatory Risk Screen
+- Six-dimension rubric
+- NIST AI RMF mapping
+- EU AI Act preliminary classification
+- Information needed to refine classification
+- Disclaimer: not legal advice
 
-### Key Constraints
-1. **Build Complexity** - The technical requirements will demand experienced ML engineering talent and significant iteration cycles
-2. **Differentiation** - Recommend deepening the unique value proposition before market entry
+### Kill Criteria
+- 3-7 concrete, testable stop conditions
 
----
-
-## Risks & Responsible AI
-
-### Responsible AI Framework Alignment
-This assessment references both **NIST AI Risk Management Framework** and **EU AI Act** requirements.
-
-### Risk Assessment
-
-| Dimension | Level | Mitigation |
-|-----------|-------|------------|
-| Privacy & Data Protection | 🟡 Medium | Implement privacy-by-design principles |
-| Bias & Fairness | 🟢 Low | Standard testing protocols sufficient |
-| Transparency | 🟢 Low | Explainability features recommended |
-| Safety & Harm | 🟢 Low | No critical safety concerns |
-| Security & Misuse | 🟡 Medium | Security audit pre-launch |
-| Human Oversight | 🟢 Low | HITL design inherent |
-
-### Regulatory Classification
-**EU AI Act Preliminary Classification:** Limited Risk System
-- Transparency obligations apply
-- No prohibited use cases identified
-- Recommended: Document AI system characteristics
+## Next Steps for Validation
+- Phase 1: Validate Demand (2-4 actions)
+- Phase 2: Validate Feasibility (2-4 actions)
+- Phase 3: Validate Differentiation & Risk (2-4 actions)
 
 ---
 
-## Next Steps
+Important:
+- Be specific to the actual solution, not generic
+- State assumptions and uncertainties explicitly
+- Include "Information Needed to Increase Confidence" where relevant
+- Keep rationales concise but substantive
+- For competitors, use the market research provided and include source URLs
+- Score conservatively; a 5 should be rare and well-justified`;
 
-### Immediate Actions (0-30 days)
-1. **Validate demand** - Conduct 5-10 customer discovery interviews
-2. **Technical spike** - Prototype core AI functionality with sample data
-3. **Competitive deep-dive** - Analyze top 3 competitors' positioning
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 8000,
+        messages: [
+          {
+            role: 'user',
+            content: userPrompt
+          }
+        ],
+        system: systemPrompt,
+      }),
+    });
 
-### Medium-term (30-90 days)
-1. Build MVP focusing on single highest-value use case
-2. Establish data pipeline and quality metrics
-3. Develop responsible AI documentation
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error('Claude API error:', errorData);
+      throw new Error(`Claude API error: ${response.status}`);
+    }
 
-### Go/No-Go Criteria
-- [ ] Confirmed demand signal from 3+ prospective customers
-- [ ] Technical feasibility validated through prototype
-- [ ] Data access confirmed for training and inference
-- [ ] Regulatory pathway understood and documented
+    const data = await response.json();
+    const content = data.content[0].text;
+    
+    // Parse the JSON response
+    // Claude might wrap it in markdown code blocks, so we need to extract it
+    let jsonStr = content;
+    const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (jsonMatch) {
+      jsonStr = jsonMatch[1];
+    }
+    
+    // Try to find JSON object if not wrapped in code blocks
+    if (!jsonStr.trim().startsWith('{')) {
+      const objectMatch = content.match(/\{[\s\S]*\}/);
+      if (objectMatch) {
+        jsonStr = objectMatch[0];
+      }
+    }
 
----
-
-*This assessment was generated using AI Solution Navigator. Results should be validated through additional research and expert consultation.*
-`;
+    const result = JSON.parse(jsonStr);
+    
+    // Validate and return
+    return {
+      viabilityScores: result.viabilityScores,
+      mostConstraining: result.mostConstraining,
+      responsibleAIRisks: result.responsibleAIRisks,
+      euAiActClassification: result.euAiActClassification,
+      reportMarkdown: result.reportMarkdown,
+    };
+  } catch (error) {
+    console.error('Claude assessment failed:', error);
+    throw new Error('Failed to generate assessment. Please try again.');
+  }
 }
