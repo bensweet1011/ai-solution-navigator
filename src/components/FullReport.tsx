@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Download, FileText, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -55,7 +56,7 @@ export function FullReport({ markdown }: FullReportProps) {
     const headings = reportContent.querySelectorAll('h2');
     headings.forEach((heading) => {
       const id = heading.textContent?.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') || '';
-      if (id === sectionId) {
+      if (id.includes(sectionId) || sectionId.includes(id) || id.startsWith(sectionId.split('-')[0])) {
         heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
     });
@@ -118,7 +119,7 @@ export function FullReport({ markdown }: FullReportProps) {
       {/* Report Content */}
       <div id="report-content" className="p-6 md:p-8 lg:p-10 max-w-4xl mx-auto">
         <div className="markdown-content">
-          <ReactMarkdown>{markdown}</ReactMarkdown>
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdown}</ReactMarkdown>
         </div>
       </div>
     </div>
