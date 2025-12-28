@@ -4,6 +4,8 @@ A decision-support tool that helps organizations evaluate AI solution approaches
 
 **[Live Demo →](https://navigator.bensweet.ai)**
 
+<img width="1652" height="877" alt="screenshot" src="https://github.com/user-attachments/assets/9b111ca5-a214-4b47-bbb3-54f95bc7d442" />
+
 ---
 
 ## What It Does
