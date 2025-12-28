@@ -96,7 +96,7 @@ This separation lets each model do what it's best at.
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/ai-solution-navigator.git
+git clone https://github.com/bensweet1011/ai-solution-navigator.git
 cd ai-solution-navigator
 
 # Install dependencies
