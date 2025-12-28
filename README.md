@@ -102,16 +102,13 @@ cd ai-solution-navigator
 # Install dependencies
 npm install
 
-# Create environment file with your API keys
-cp .env.example .env
-
 # Start development server
 npm run dev
 ```
 
 The app will be available at `http://localhost:5173`
 
-> **Note:** This project requires API keys for Claude and Perplexity. See `.env.example` for required variables.
+> **Note:** This project requires API keys for Claude and Perplexity. Create a .env file with ANTHROPIC_API_KEY and PERPLEXITY_API_KEY variables.
 
 ---
 
