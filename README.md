@@ -1,73 +1,186 @@
-# Welcome to your Lovable project
+# AI Solution Navigator
 
-## Project info
+A decision-support tool that helps organizations evaluate AI solution approaches and understand the competitive landscape. Built with React, Tailwind CSS, and integrated with Claude and Perplexity APIs for intelligent analysis.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+**[Live Demo →](https://navigator.bensweet.ai)**
 
-## How can I edit this code?
+---
 
-There are several ways of editing your application.
+## What It Does
 
-**Use Lovable**
+The AI Solution Navigator guides users through a structured assessment process to answer two critical questions:
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+1. **Build vs. Buy vs. Hybrid** — Should you build custom AI, purchase an existing solution, or take a hybrid approach?
+2. **What's Already Out There** — Who are the existing players, and how does your concept compare?
 
-Changes made via Lovable will be committed automatically to this repo.
+### Input
 
-**Use your preferred IDE**
+Users complete a scoping questionnaire covering:
+- Problem description and business context
+- Target users and use case
+- Data sensitivity and compliance requirements
+- Integration needs and technical constraints
+- Budget and timeline considerations
+- Customization requirements
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### Output
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+The tool generates a structured assessment report including:
 
-Follow these steps:
+- **Executive Summary** — High-level recommendation with key considerations
+- **Build vs. Buy Analysis** — Detailed reasoning for the recommended approach
+- **Competitive Landscape** — Current market players and how they compare
+- **Technical Feasibility** — Assessment of implementation complexity
+- **Responsible AI Considerations** — Governance, bias, and compliance factors
+- **Next Steps** — Actionable recommendations for moving forward
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+Reports can be exported as Markdown or PDF.
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+---
 
-# Step 3: Install the necessary dependencies.
-npm i
+## Tech Stack
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+| Layer | Technology | Purpose |
+|-------|------------|---------|
+| Frontend | React + TypeScript | UI components and state management |
+| Styling | Tailwind CSS | Responsive design system |
+| AI Analysis | Claude API (Anthropic) | Reasoning and recommendation generation |
+| Market Research | Perplexity API | Real-time competitive landscape research |
+| Hosting | Vercel | Deployment and edge functions |
+| Build Tool | Vite | Fast development and bundling |
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Frontend (React)                      │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌──────────────┐ │
+│  │  Intake Form    │→ │  Loading State  │→ │    Report    │ │
+│  │  (6 questions)  │  │  (API calls)    │  │   Display    │ │
+│  └─────────────────┘  └─────────────────┘  └──────────────┘ │
+└─────────────────────────────┬───────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                      API Layer (Vercel)                      │
+│  ┌─────────────────────────┐  ┌───────────────────────────┐ │
+│  │  /api/assess            │  │  /api/research            │ │
+│  │  Claude API call        │  │  Perplexity API call      │ │
+│  │  → Recommendation       │  │  → Competitive landscape  │ │
+│  └─────────────────────────┘  └───────────────────────────┘ │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Why two APIs?**
+
+- **Claude** excels at reasoning through complex tradeoffs and generating nuanced recommendations based on user-provided context
+- **Perplexity** excels at real-time web search and synthesizing current market information with source citations
+
+This separation lets each model do what it's best at.
+
+---
+
+## Local Development
+
+### Prerequisites
+
+- Node.js 18+
+- Anthropic API key ([get one here](https://console.anthropic.com/))
+- Perplexity API key ([get one here](https://www.perplexity.ai/settings/api))
+
+### Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/ai-solution-navigator.git
+cd ai-solution-navigator
+
+# Install dependencies
+npm install
+
+# Create environment file with your API keys
+cp .env.example .env
+
+# Start development server
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+The app will be available at `http://localhost:5173`
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+> **Note:** This project requires API keys for Claude and Perplexity. See `.env.example` for required variables.
 
-**Use GitHub Codespaces**
+---
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## Project Structure
 
-## What technologies are used for this project?
+```
+ai-solution-navigator/
+├── src/
+│   ├── components/
+│   │   ├── IntakeForm.tsx      # Multi-step questionnaire
+│   │   ├── LoadingState.tsx    # Processing indicator
+│   │   ├── ReportDisplay.tsx   # Assessment output
+│   │   └── SectionNav.tsx      # Report navigation
+│   ├── api/
+│   │   ├── assess.ts           # Claude API integration
+│   │   └── research.ts         # Perplexity API integration
+│   ├── utils/
+│   │   ├── exportMarkdown.ts   # Markdown export
+│   │   └── exportPdf.ts        # PDF generation
+│   └── App.tsx
+├── public/
+├── .env.example
+└── package.json
+```
 
-This project is built with:
+---
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## Design Decisions
 
-## How can I deploy this project?
+### Why a wizard instead of a single form?
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+Breaking the intake into steps reduces cognitive load and improves completion rates. Each step focuses on one aspect of the decision (problem, constraints, requirements).
 
-## Can I connect a custom domain to my Lovable project?
+### Why not just use ChatGPT/Claude directly?
 
-Yes, you can!
+Three reasons:
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+1. **Structured output** — The tool enforces a consistent report format that's easy to share and act on
+2. **Dual-model approach** — Combines Claude's reasoning with Perplexity's search capabilities
+3. **Domain expertise** — The prompts encode best practices for AI solution evaluation that a general chat wouldn't include
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+### Why show Responsible AI considerations?
+
+AI governance is increasingly required for enterprise deployments. Surfacing these considerations early helps users avoid surprises during procurement or compliance review.
+
+---
+
+## Roadmap
+
+- [ ] Save and compare multiple assessments
+- [ ] Team sharing and collaboration
+- [ ] Integration with project management tools
+- [ ] Industry-specific templates (healthcare, finance, government)
+- [ ] Cost estimation module
+
+---
+
+## About
+
+Built by [Ben Sweet](https://bensweet.ai) as part of an AI product management portfolio. 
+
+This tool reflects a "pragmatic AI" philosophy: using foundation model APIs and thoughtful orchestration to deliver immediate value, rather than over-engineering custom models for problems that don't require them.
+
+---
+
+## License
+
+MIT
+
+---
+
+## Contributing
+
+Issues and pull requests welcome. For major changes, please open an issue first to discuss the proposed change.
